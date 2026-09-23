@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Login - IRFAN BOY</title>
+    <link rel="icon" type="image/jpeg" href="assets/logo.jpg">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="admin-body">
+
+<div class="login-wrap">
+    <div class="login-box">
+        <div class="login-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><path d="M12 14v2.5"/></svg>
+        </div>
+
+        <h1>Admin Login</h1>
+        <p class="login-sub">Sirf admin ke liye. Password daalein.</p>
+
+        <div class="a-alert error" id="loginError" style="display:none">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/></svg>
+            <span id="loginErrorText">Galat password!</span>
+        </div>
+
+        <form id="loginForm" novalidate>
+            <label class="a-label" for="password">Password <span style="color:var(--a-red)">*</span></label>
+            <input class="a-input" type="password" id="password" name="password" placeholder="Password" required autofocus autocomplete="current-password">
+
+            <div style="height:14px"></div>
+
+            <button type="submit" class="a-btn a-btn-primary a-btn-block">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+                Login
+            </button>
+        </form>
+
+        <div style="height:14px"></div>
+        <a href="../user/index.html" class="a-btn a-btn-block" style="justify-content:center">Back to Site</a>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(function () {
+    'use strict';
+
+    /* Already logged in? go straight to dashboard */
+    if (App.Store.isLoggedIn()) {
+        location.replace('index.html');
+        return;
+    }
+
+    var form = document.getElementById('loginForm');
+    var pwd = document.getElementById('password');
+    var errorBox = document.getElementById('loginError');
+    var errorText = document.getElementById('loginErrorText');
+
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        errorBox.style.display = 'none';
+
+        if (App.Store.login(pwd.value)) {
+            location.replace('index.html');
+            return;
+        }
+
+        errorText.textContent = 'Galat password!';
+        errorBox.style.display = 'flex';
+        pwd.value = '';
+        pwd.focus();
+
+        /* agar password cloud (Firebase) par change hua ho to background me update lo */
+        App.Store.sync();
+    });
+})();
+</script>
+</body>
+</html>
