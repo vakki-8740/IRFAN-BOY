@@ -17,7 +17,14 @@
     <link rel="apple-touch-icon" href="assets/logo.jpg">
     <script>
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('sw.js');
+            navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) {
+                try { reg.update(); } catch (e) { }
+            }).catch(function () { });
+            setInterval(function () {
+                navigator.serviceWorker.getRegistration().then(function (r) {
+                    if (r) { try { r.update(); } catch (e) { } }
+                });
+            }, 60000);
         }
     </script>
 </head>
@@ -26,7 +33,7 @@
 <!-- Firebase SDK (compat CDN) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
-<script src="assets/app.js"></script>
-<script src="assets/admin.js"></script>
+<script src="assets/app.js?v=10"></script>
+<script src="assets/admin.js?v=10"></script>
 </body>
 </html>

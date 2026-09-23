@@ -80,11 +80,17 @@
         writeJSON(STORE_KEY, list);
     }
 
-    /* local ticket ko cloud me upsert karo (best-effort) */
+    /* local ticket ko cloud me upsert karo (best-effort).
+       Firestore doc limit ~1MB - bahut badi image local rakho, cloud se strip karo. */
     function pushTicket(t) {
         if (!db || !t || !t.id) return Promise.resolve(false);
+        var payload = cleanTicket(t);
+        if (payload.image && String(payload.image).length > 700000) {
+            payload.image = '';
+            payload.image_omitted = true;
+        }
         return db.collection('tickets').doc(t.id)
-            .set(cleanTicket(t), { merge: true })
+            .set(payload, { merge: true })
             .then(function () { markSynced(t.id); return true; })
             .catch(function () { return false; });
     }
@@ -448,16 +454,13 @@
             }
         });
 
-        /* 3) Remote non-empty ho tabhi "doosre device delete" wale local drop karo.
-           Empty snapshot par local wipe mat karo. */
-        if (remote.length > 0) {
-            merged = merged.filter(function (t) {
-                if (!t || !t.id) return false;
-                if (tomIds[t.id] || isDemoTicket(t)) return false;
-                if (!t._synced) return true;
-                return !!remoteIds[t.id];
-            });
-        }
+        /* 3) Sirf tombstone/demo hatao. Remote me missing hone par local mat delete karo
+              (race/wipe bug - mobile pe ticket empty dikh raha tha). */
+        merged = merged.filter(function (t) {
+            if (!t || !t.id) return false;
+            if (tomIds[t.id] || isDemoTicket(t)) return false;
+            return true;
+        });
 
         merged.sort(function (a, b) {
             if ((a.created_at || '') < (b.created_at || '')) return 1;

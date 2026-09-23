@@ -154,7 +154,6 @@ body {
 .menu-drawer a svg { width: 21px; height: 21px; color: var(--text2); flex-shrink: 0; }
 .menu-drawer a:hover, .menu-drawer a:active { background: var(--accent2); color: var(--accent); }
 .menu-drawer a:hover svg, .menu-drawer a:active svg { color: var(--accent); }
-}
 
 .hero {
     text-align: center;

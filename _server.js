@@ -18,7 +18,16 @@ http.createServer((req, res) => {
     if (!file.startsWith(root)) { res.writeHead(403); return res.end('no'); }
     fs.readFile(file, (err, data) => {
         if (err) { res.writeHead(404); return res.end('404'); }
-        res.writeHead(200, { 'Content-Type': types[path.extname(file).toLowerCase()] || 'application/octet-stream' });
+        const ext = path.extname(file).toLowerCase();
+        const headers = {
+            'Content-Type': types[ext] || 'application/octet-stream',
+            'Cache-Control': (ext === '.html' || ext === '.js' || ext === '.css' || ext === '.json')
+                ? 'no-cache, no-store, must-revalidate'
+                : 'public, max-age=3600',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+        };
+        res.writeHead(200, headers);
         res.end(data);
     });
 }).listen(port, () => console.log('listening ' + port));

@@ -80,11 +80,18 @@
         writeJSON(STORE_KEY, list);
     }
 
-    /* local ticket ko cloud me upsert karo (best-effort) */
+    /* local ticket ko cloud me upsert karo (best-effort).
+       Firestore doc limit ~1MB - bahut badi image local rakho, cloud se strip karo. */
     function pushTicket(t) {
         if (!db || !t || !t.id) return Promise.resolve(false);
+        var payload = cleanTicket(t);
+        if (payload.image && String(payload.image).length > 700000) {
+            payload = cleanTicket(t);
+            payload.image = '';
+            payload.image_omitted = true;
+        }
         return db.collection('tickets').doc(t.id)
-            .set(cleanTicket(t), { merge: true })
+            .set(payload, { merge: true })
             .then(function () { markSynced(t.id); return true; })
             .catch(function () { return false; });
     }
@@ -448,16 +455,13 @@
             }
         });
 
-        /* 3) Remote non-empty ho tabhi "doosre device delete" wale local drop karo.
-           Empty snapshot par local wipe mat karo. */
-        if (remote.length > 0) {
-            merged = merged.filter(function (t) {
-                if (!t || !t.id) return false;
-                if (tomIds[t.id] || isDemoTicket(t)) return false;
-                if (!t._synced) return true;
-                return !!remoteIds[t.id];
-            });
-        }
+        /* 3) Sirf tombstone/demo hatao. Remote me missing hone par local mat delete karo
+              (race/wipe bug - mobile pe ticket empty dikh raha tha). */
+        merged = merged.filter(function (t) {
+            if (!t || !t.id) return false;
+            if (tomIds[t.id] || isDemoTicket(t)) return false;
+            return true;
+        });
 
         merged.sort(function (a, b) {
             if ((a.created_at || '') < (b.created_at || '')) return 1;
@@ -534,6 +538,44 @@
     };
 
     /* ---------- 7. Shared UI behaviors ---------- */
+    function initMenu() {
+        var btn = document.getElementById('menuBtn');
+        var panel = document.getElementById('menuPanel');
+        var overlay = document.getElementById('menuOverlay');
+        var closeBtn = document.getElementById('menuClose');
+        if (!btn || !panel) return;
+
+        function openMenu() {
+            panel.classList.add('open');
+            if (overlay) overlay.classList.add('show');
+            document.body.style.overflow = 'hidden';
+        }
+        function closeMenu() {
+            panel.classList.remove('open');
+            if (overlay) overlay.classList.remove('show');
+            document.body.style.overflow = '';
+        }
+
+        btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            openMenu();
+        });
+        if (closeBtn) closeBtn.addEventListener('click', function (e) {
+            e.preventDefault();
+            closeMenu();
+        });
+        if (overlay) overlay.addEventListener('click', closeMenu);
+        panel.addEventListener('click', function (e) {
+            var a = e.target;
+            while (a && a !== panel && a.tagName !== 'A') a = a.parentNode;
+            if (a && a.tagName === 'A') closeMenu();
+        });
+        document.addEventListener('keydown', function (e) {
+            if (e.key === 'Escape') closeMenu();
+        });
+    }
+
     function initDrawer() {
         var btn = document.querySelector('.nav-toggle');
         var nav = document.querySelector('.nav-links');
@@ -569,8 +611,20 @@
         escapeHTML: escapeHTML,
         readFileAsDataURL: readFileAsDataURL,
         initDrawer: initDrawer,
+        initMenu: initMenu,
         initFaq: initFaq,
         firebaseReady: !!db,
         ADMIN_PASSWORD_HINT: ADMIN_PASSWORD
     };
+
+    function boot() {
+        try { initMenu(); } catch (e) { }
+        try { initDrawer(); } catch (e) { }
+        try { initFaq(); } catch (e) { }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', boot);
+    } else {
+        boot();
+    }
 })(window);
