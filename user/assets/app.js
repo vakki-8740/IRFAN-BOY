@@ -106,13 +106,43 @@
         writeJSON(DELETED_KEY, tombstones().filter(function (x) { return x.id !== id; }));
     }
 
+    /* Demo / QA tickets - kabhi show nahi, cloud se bhi delete */
+    function isDemoTicket(t) {
+        if (!t) return false;
+        var id = String(t.id || '');
+        var name = String(t.name || '');
+        var email = String(t.email || '');
+        var mobile = String(t.mobile || '');
+        var issue = String(t.issue || '');
+        if (id === 'abc123def456') return true;
+        if (name === 'Test User' || name === 'QA Detail Check') return true;
+        if (email === 'test@example.com') return true;
+        if (mobile === '9999999999') return true;
+        if (/^E2E/i.test(name)) return true;
+        if (/E2E automation/i.test(issue)) return true;
+        return false;
+    }
+
     var syncing = false;
+    var changeFns = [];
+    var rtUnsubs = [];
+
+    function notifyChange() {
+        for (var i = 0; i < changeFns.length; i++) {
+            try { changeFns[i](); } catch (e) { }
+        }
+    }
 
     /* ---------- 3. Data Store ---------- */
     var Store = {
         getTickets: function () {
             var list = readJSON(STORE_KEY, []);
-            return Array.isArray(list) ? list : [];
+            if (!Array.isArray(list)) return [];
+            var out = [];
+            for (var i = 0; i < list.length; i++) {
+                if (!isDemoTicket(list[i])) out.push(list[i]);
+            }
+            return out;
         },
 
         addTicket: function (data) {
@@ -177,7 +207,8 @@
         },
 
         clearTickets: function () {
-            var list = this.getTickets();
+            var list = readJSON(STORE_KEY, []);
+            if (!Array.isArray(list)) list = [];
             for (var i = 0; i < list.length; i++) addTombstone(list[i].id);
             writeJSON(STORE_KEY, []);
             if (db) {
@@ -189,6 +220,7 @@
                     })(list[j].id);
                 }
             }
+            notifyChange();
             return true;
         },
 
@@ -336,7 +368,7 @@
 
             /* local me jo sync nahi hua (naya/edited) - wo sahi hai, push karo */
             local.forEach(function (t) {
-                if (tomIds[t.id] || seen[t.id]) return;
+                if (tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
                 if (!t._synced) {
                     merged.push(t);
                     seen[t.id] = true;
@@ -346,17 +378,19 @@
 
             /* baaki remote se lo (remote fresh hai) */
             remote.forEach(function (t) {
-                if (tomIds[t.id] || seen[t.id]) return;
+                if (!t || !t.id || tomIds[t.id] || seen[t.id]) return;
+                if (isDemoTicket(t)) {
+                    if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
+                    return;
+                }
                 t._synced = true;
                 merged.push(t);
                 seen[t.id] = true;
             });
 
-            /* local _synced par remote me nahi => doosre device par delete ho chuka => drop */
-
             /* write se theek pehle local dobara padho - beech me add hue tickets na jayein */
-            Store.getTickets().forEach(function (t) {
-                if (tomIds[t.id] || seen[t.id]) return;
+            readJSON(STORE_KEY, []).forEach(function (t) {
+                if (!t || !t.id || tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
                 if (!t._synced) {
                     merged.push(t);
                     seen[t.id] = true;
@@ -375,8 +409,139 @@
             return { ok: true, count: merged.length };
         }).catch(function () {
             return { ok: false, reason: 'sync-error' };
-        }).then(function (r) { syncing = false; return r; });
+        }).then(function (r) { syncing = false; notifyChange(); return r; });
     };
+
+    /* ---------- 5b. Demo purge + realtime Firestore ---------- */
+    Store.onChange = function (fn) {
+        if (typeof fn === 'function') changeFns.push(fn);
+    };
+
+    function purgeDemoLocalAndCloud() {
+        var list = readJSON(STORE_KEY, []);
+        if (!Array.isArray(list) || !list.length) return false;
+        var kept = [];
+        var removed = false;
+        for (var i = 0; i < list.length; i++) {
+            if (isDemoTicket(list[i])) {
+                removed = true;
+                var id = list[i].id;
+                addTombstone(id);
+                if (db) {
+                    (function (tid) {
+                        db.collection('tickets').doc(tid).delete()
+                            .then(function () { dropTombstone(tid); })
+                            .catch(function () { });
+                    })(id);
+                }
+            } else {
+                kept.push(list[i]);
+            }
+        }
+        if (removed) {
+            writeJSON(STORE_KEY, kept);
+            notifyChange();
+        }
+        return removed;
+    }
+    Store.purgeDemoTickets = purgeDemoLocalAndCloud;
+
+    function applyRemoteSnapshot(remote) {
+        var tomIds = {};
+        tombstones().forEach(function (x) { tomIds[x.id] = true; });
+
+        var localAll = readJSON(STORE_KEY, []);
+        if (!Array.isArray(localAll)) localAll = [];
+
+        var merged = [];
+        var seen = {};
+        var hadDemo = false;
+
+        localAll.forEach(function (t) {
+            if (!t || !t.id) return;
+            if (isDemoTicket(t)) {
+                hadDemo = true;
+                addTombstone(t.id);
+                if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
+                return;
+            }
+            if (tomIds[t.id] || seen[t.id]) return;
+            if (!t._synced) {
+                merged.push(t);
+                seen[t.id] = true;
+                pushTicket(t);
+            }
+        });
+
+        (remote || []).forEach(function (t) {
+            if (!t || !t.id || tomIds[t.id] || seen[t.id]) return;
+            if (isDemoTicket(t)) {
+                hadDemo = true;
+                if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
+                return;
+            }
+            t._synced = true;
+            merged.push(t);
+            seen[t.id] = true;
+        });
+
+        readJSON(STORE_KEY, []).forEach(function (t) {
+            if (!t || !t.id || tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
+            if (!t._synced) {
+                merged.push(t);
+                seen[t.id] = true;
+                pushTicket(t);
+            }
+        });
+
+        merged.sort(function (a, b) {
+            if ((a.created_at || '') < (b.created_at || '')) return 1;
+            if ((a.created_at || '') > (b.created_at || '')) return -1;
+            return 0;
+        });
+
+        writeJSON(STORE_KEY, merged);
+        writeJSON(SYNC_KEY, nowStamp());
+        notifyChange();
+    }
+
+    Store.startRealtime = function () {
+        if (!db) return false;
+        if (rtUnsubs.length) return true;
+
+        try {
+            rtUnsubs.push(db.collection('tickets').onSnapshot(function (snap) {
+                var remote = [];
+                snap.forEach(function (d) {
+                    var t = d.data();
+                    if (t && t.id) remote.push(t);
+                });
+                applyRemoteSnapshot(remote);
+            }, function () { }));
+        } catch (e) { }
+
+        try {
+            rtUnsubs.push(db.collectionGroup('messages').onSnapshot(function (snap) {
+                var all = readJSON(MSG_KEY, {}) || {};
+                snap.forEach(function (d) {
+                    var m = d.data();
+                    if (!m || !m.id) return;
+                    var tid = d.ref.parent ? d.ref.parent.id : '';
+                    if (!tid) return;
+                    if (!all[tid]) all[tid] = [];
+                    var exists = false;
+                    for (var i = 0; i < all[tid].length; i++) if (all[tid][i].id === m.id) exists = true;
+                    if (!exists) all[tid].push(m);
+                });
+                writeJSON(MSG_KEY, all);
+                notifyChange();
+            }, function () { }));
+        } catch (e) { }
+
+        return true;
+    };
+
+    purgeDemoLocalAndCloud();
 
     /* ---------- 6. SVG icon set (hand-written) ---------- */
     var Icon = {

@@ -1,4 +1,4 @@
-var CACHE_NAME = 'irfan-admin-v7';
+var CACHE_NAME = 'irfan-admin-v8';
 var ASSETS = [
     'assets/style.css',
     'assets/app.js',

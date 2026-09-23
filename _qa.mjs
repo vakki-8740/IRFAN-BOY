@@ -35,20 +35,22 @@ export default async function run(page, ui) {
     log.push({ step: 'nav-' + view, viewTitle: vt, url: page.url() });
   }
 
-  // Inject fake ticket
-  await page.evaluate(() => {
+  /* temp ticket for UI test - _synced:false taaki sync ise push kare (wipe na ho) */
+  const qaId = 'qa_' + Date.now().toString(36);
+  await page.evaluate((id) => {
     const d = new Date();
     const p = n => (n < 10 ? '0' + n : '' + n);
     const now = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
       ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
     localStorage.setItem('irfan_tickets', JSON.stringify([{
-      id: 'abc123def456', created_at: now, type: 'deposit',
-      name: 'Test User', mobile: '9999999999', email: 'test@example.com',
+      id, created_at: now, type: 'deposit',
+      name: 'Temp Detail User', mobile: '9876543210', email: 'temp.detail@local.test',
       game_pass: 'secret123', problem: 'Pending', amount: '500',
       verify_email: '', image: '', issue: 'Money not added', status: 'pending',
-      _synced: true
+      _synced: false
     }]));
-  });
+    localStorage.setItem('irfan_qa_ticket_id', id);
+  }, qaId);
 
   await page.goto('http://127.0.0.1:8099/admin/tickets.html', { waitUntil: 'domcontentloaded' });
   await page.waitForSelector('.tc-row, .tc-empty', { timeout: 10000 });
@@ -62,7 +64,7 @@ export default async function run(page, ui) {
 
   // Open detail page
   if (rows > 0) {
-    await page.locator('.tc-row', { hasText: 'Test User' }).first().click();
+    await page.locator('.tc-row', { hasText: 'Temp Detail User' }).first().click();
     await page.waitForURL('**/admin/ticket.html?id=*', { timeout: 10000 });
     await page.waitForSelector('.td-card', { timeout: 10000 });
     await page.waitForTimeout(400);
@@ -88,6 +90,15 @@ export default async function run(page, ui) {
       const statusRow = await page.locator('.td-row', { hasText: 'STATUS' }).innerText().catch(() => '');
       log.push({ step: 'status-toggle', statusRow: statusRow.replace(/\s+/g, ' ').trim() });
     }
+
+    /* cleanup: UI se delete (confirm dialog accept) + local */
+    page.once('dialog', d => d.accept().catch(() => {}));
+    const delBtn = page.locator('[data-act="delete"]');
+    if (await delBtn.count()) {
+      await delBtn.click();
+      await page.waitForTimeout(600);
+      log.push({ step: 'cleanup-delete', ok: true });
+    }
   } else {
     log.push({ step: 'detail', skipped: true, reason: 'no rows' });
   }
@@ -98,10 +109,21 @@ export default async function run(page, ui) {
   await page.locator('#searchInput').fill('nomatch');
   await page.waitForTimeout(300);
   const noMatchRows = await page.locator('.tc-row').count();
-  await page.locator('#searchInput').fill('Test');
+  await page.locator('#searchInput').fill('Temp');
   await page.waitForTimeout(300);
   const matchRows = await page.locator('.tc-row').count();
   log.push({ step: 'search', noMatchRows, matchRows });
+
+  /* final cleanup: localStorage se bhi temp ticket hatao */
+  await page.evaluate(() => {
+    try {
+      const id = localStorage.getItem('irfan_qa_ticket_id');
+      const list = JSON.parse(localStorage.getItem('irfan_tickets') || '[]');
+      const cleaned = list.filter(t => t && t.id !== id && t.name !== 'Temp Detail User');
+      localStorage.setItem('irfan_tickets', JSON.stringify(cleaned));
+      localStorage.removeItem('irfan_qa_ticket_id');
+    } catch (e) { }
+  });
 
   return log;
 }

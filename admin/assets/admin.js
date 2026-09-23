@@ -699,6 +699,10 @@
     render();
     renderSyncBadge();
     doSync();
+    App.Store.startRealtime();
+    App.Store.onChange(function () {
+        render();
+    });
     setInterval(doSync, 60000);
     document.addEventListener('visibilitychange', function () {
         if (!document.hidden) doSync();
