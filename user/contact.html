@@ -334,6 +334,11 @@
                     image: imageData || '',
                     issue: issue
                 });
+                /* cloud push + realtime start (fail silent - local to safe hai) */
+                try {
+                    App.Store.startRealtime();
+                    App.Store.sync();
+                } catch (e) { }
                 setTimeout(function () {
                     overlay.classList.remove('show');
                     document.getElementById('formWrap').style.display = 'none';

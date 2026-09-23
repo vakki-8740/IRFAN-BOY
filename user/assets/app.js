@@ -359,54 +359,10 @@
             var remote = res[1];
             if (!remote) return { ok: false, reason: 'fetch-failed' };
 
-            var tomIds = {};
-            tombstones().forEach(function (x) { tomIds[x.id] = true; });
-
-            var local = Store.getTickets();
-            var merged = [];
-            var seen = {};
-
-            /* local me jo sync nahi hua (naya/edited) - wo sahi hai, push karo */
-            local.forEach(function (t) {
-                if (tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
-                if (!t._synced) {
-                    merged.push(t);
-                    seen[t.id] = true;
-                    pushTicket(t);
-                }
-            });
-
-            /* baaki remote se lo (remote fresh hai) */
-            remote.forEach(function (t) {
-                if (!t || !t.id || tomIds[t.id] || seen[t.id]) return;
-                if (isDemoTicket(t)) {
-                    if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
-                    return;
-                }
-                t._synced = true;
-                merged.push(t);
-                seen[t.id] = true;
-            });
-
-            /* write se theek pehle local dobara padho - beech me add hue tickets na jayein */
-            readJSON(STORE_KEY, []).forEach(function (t) {
-                if (!t || !t.id || tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
-                if (!t._synced) {
-                    merged.push(t);
-                    seen[t.id] = true;
-                    pushTicket(t);
-                }
-            });
-
-            merged.sort(function (a, b) {
-                if ((a.created_at || '') < (b.created_at || '')) return 1;
-                if ((a.created_at || '') > (b.created_at || '')) return -1;
-                return 0;
-            });
-
-            writeJSON(STORE_KEY, merged);
-            writeJSON(SYNC_KEY, nowStamp());
-            return { ok: true, count: merged.length };
+            /* realtime merge logic reuse - local wipe mat karo */
+            applyRemoteSnapshot(remote);
+            var count = Store.getTickets().length;
+            return { ok: true, count: count };
         }).catch(function () {
             return { ok: false, reason: 'sync-error' };
         }).then(function (r) { syncing = false; notifyChange(); return r; });
@@ -453,46 +409,55 @@
         var localAll = readJSON(STORE_KEY, []);
         if (!Array.isArray(localAll)) localAll = [];
 
+        remote = Array.isArray(remote) ? remote : [];
+        var remoteIds = {};
+        remote.forEach(function (t) { if (t && t.id) remoteIds[t.id] = true; });
+
         var merged = [];
         var seen = {};
-        var hadDemo = false;
 
+        /* 1) Saare local tickets rakho (demo/tombstone chhod ke) */
         localAll.forEach(function (t) {
             if (!t || !t.id) return;
             if (isDemoTicket(t)) {
-                hadDemo = true;
                 addTombstone(t.id);
                 if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
                 return;
             }
             if (tomIds[t.id] || seen[t.id]) return;
-            if (!t._synced) {
-                merged.push(t);
-                seen[t.id] = true;
-                pushTicket(t);
-            }
+            merged.push(t);
+            seen[t.id] = true;
+            if (!t._synced) pushTicket(t);
         });
 
-        (remote || []).forEach(function (t) {
-            if (!t || !t.id || tomIds[t.id] || seen[t.id]) return;
+        /* 2) Remote se update/overwrite karo */
+        remote.forEach(function (t) {
+            if (!t || !t.id || tomIds[t.id]) return;
             if (isDemoTicket(t)) {
-                hadDemo = true;
                 if (db) db.collection('tickets').doc(t.id).delete().catch(function () { });
                 return;
             }
             t._synced = true;
-            merged.push(t);
-            seen[t.id] = true;
-        });
-
-        readJSON(STORE_KEY, []).forEach(function (t) {
-            if (!t || !t.id || tomIds[t.id] || seen[t.id] || isDemoTicket(t)) return;
-            if (!t._synced) {
+            if (seen[t.id]) {
+                for (var i = 0; i < merged.length; i++) {
+                    if (merged[i].id === t.id) { merged[i] = t; break; }
+                }
+            } else {
                 merged.push(t);
                 seen[t.id] = true;
-                pushTicket(t);
             }
         });
+
+        /* 3) Remote non-empty ho tabhi "doosre device delete" wale local drop karo.
+           Empty snapshot par local wipe mat karo. */
+        if (remote.length > 0) {
+            merged = merged.filter(function (t) {
+                if (!t || !t.id) return false;
+                if (tomIds[t.id] || isDemoTicket(t)) return false;
+                if (!t._synced) return true;
+                return !!remoteIds[t.id];
+            });
+        }
 
         merged.sort(function (a, b) {
             if ((a.created_at || '') < (b.created_at || '')) return 1;
