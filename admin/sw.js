@@ -1,8 +1,8 @@
-var CACHE_NAME = 'irfan-admin-v10';
+var CACHE_NAME = 'irfan-admin-v11';
 var ASSETS = [
     'assets/style.css',
-    'assets/app.js?v=10',
-    'assets/admin.js?v=10',
+    'assets/app.js?v=11',
+    'assets/admin.js?v=11',
     'assets/logo.jpg',
     'assets/user-icons/user-default.png',
     'ticket.html',

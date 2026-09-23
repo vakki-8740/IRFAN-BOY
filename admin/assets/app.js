@@ -446,7 +446,14 @@
             t._synced = true;
             if (seen[t.id]) {
                 for (var i = 0; i < merged.length; i++) {
-                    if (merged[i].id === t.id) { merged[i] = t; break; }
+                    if (merged[i].id === t.id) {
+                        var localImg = merged[i].image || '';
+                        var remoteImg = t.image || '';
+                        /* cloud se badi image strip ho sakti hai — local image kabhi empty remote se mat wipe karo */
+                        if (!remoteImg && localImg) t.image = localImg;
+                        merged[i] = t;
+                        break;
+                    }
                 }
             } else {
                 merged.push(t);
