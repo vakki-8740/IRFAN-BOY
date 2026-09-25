@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Store } from '../store.js';
 import { navigate } from '../router.js';
 import { Ico, StatsGrid } from './shared.jsx';
+import { useInstall } from '../install.js';
 
 const NAV = [
     { view: 'dashboard', href: '#/', label: 'Dashboard', icon: 'dashboard' },
@@ -11,6 +12,7 @@ const NAV = [
 
 export default function Layout({ view, meta, tickets, cloudOn, children }) {
     const [sideOpen, setSideOpen] = useState(false);
+    const { installed, canInstall, install } = useInstall();
 
     const hasStats = meta.stats;
     const total = tickets.length;
@@ -26,7 +28,7 @@ export default function Layout({ view, meta, tickets, cloudOn, children }) {
             <div className="admin-shell">
                 <aside className={'admin-side' + (sideOpen ? ' open' : '')}>
                     <div className="admin-brand">
-                        <img src="assets/logo.jpg" alt="IRFAN BOY" className="admin-logo" />
+                        <img src="assets/admin-logo.jpg" alt="IRFAN BOY" className="admin-logo" />
                         <div className="admin-brand-txt"><h4>IRFAN BOY</h4><span>Admin Panel</span></div>
                     </div>
                     <nav className="admin-nav">
@@ -41,6 +43,11 @@ export default function Layout({ view, meta, tickets, cloudOn, children }) {
                         })}
                     </nav>
                     <div className="admin-side-foot">
+                        {canInstall ? (
+                            <button type="button" onClick={install}><Ico name="download" /> Install App</button>
+                        ) : installed ? (
+                            <span><Ico name="download" /> App Installed</span>
+                        ) : null}
                         <a href="../user/index.html" style={{ textDecoration: 'none' }}><Ico name="eye" /> View Site</a>
                         <button type="button" onClick={logout}><Ico name="logout" /> Logout</button>
                     </div>

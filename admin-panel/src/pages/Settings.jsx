@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Store } from '../store.js';
+import { useInstall } from '../install.js';
 
 export default function Settings({ tickets }) {
     const cloud = Store.isCloudReady();
@@ -9,6 +10,7 @@ export default function Settings({ tickets }) {
     const [curPwd, setCurPwd] = useState('');
     const [newPwd, setNewPwd] = useState('');
     const [confPwd, setConfPwd] = useState('');
+    const { installed, isIOS, canInstall, install } = useInstall();
 
     function showAlert(ok, msg) { setAlert({ ok, msg }); }
 
@@ -52,6 +54,25 @@ export default function Settings({ tickets }) {
 
     return (
         <div className="flat-list">
+            <div className="flat-card">
+                <div className="flat-card-head">
+                    <span className="cell-strong">Install App</span>
+                    <span className={'a-badge ' + (installed ? 'green' : 'grey')}>{installed ? 'Installed' : 'Available'}</span>
+                </div>
+                <div className="flat-row">Add this panel to your phone home screen and open it like a normal app.</div>
+                {installed ? (
+                    <div className="flat-row">This app is already installed on your device.</div>
+                ) : canInstall ? (
+                    <div className="flat-actions">
+                        <button type="button" className="a-btn a-btn-primary a-btn-sm" onClick={install}>Install App</button>
+                    </div>
+                ) : isIOS ? (
+                    <div className="flat-row"><strong>iPhone:</strong> open this page in Safari → tap <strong>Share</strong> → <strong>Add to Home Screen</strong>.</div>
+                ) : (
+                    <div className="flat-row"><strong>Android / Chrome:</strong> tap the <strong>⋮</strong> menu → <strong>Install app</strong>. (Requires the site to be opened on HTTPS.)</div>
+                )}
+            </div>
+
             <div className="flat-card">
                 <div className="flat-card-head">
                     <span className="cell-strong">Cloud Sync (Firebase)</span>
