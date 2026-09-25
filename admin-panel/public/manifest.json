@@ -1,0 +1,25 @@
+{
+    "name": "IRFAN BOY Admin",
+    "short_name": "IRFAN Admin",
+    "description": "Support tickets admin panel",
+    "start_url": "./",
+    "scope": "./",
+    "display": "standalone",
+    "orientation": "portrait",
+    "background_color": "#f4f6f8",
+    "theme_color": "#f4f6f8",
+    "icons": [
+        {
+            "src": "assets/logo.jpg",
+            "sizes": "192x192",
+            "type": "image/jpeg",
+            "purpose": "any"
+        },
+        {
+            "src": "assets/logo.jpg",
+            "sizes": "512x512",
+            "type": "image/jpeg",
+            "purpose": "any"
+        }
+    ]
+}
