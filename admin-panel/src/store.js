@@ -28,6 +28,7 @@ var SESSION_KEY = 'irfan_admin_session';
 var PWD_KEY = 'irfan_password';
 var DELETED_KEY = 'irfan_deleted';
 var SYNC_KEY = 'irfan_last_sync';
+var TG_KEY = 'irfan_telegram';
 
 var ADMIN_PASSWORD = 'irfan123';
 
@@ -278,7 +279,45 @@ export var Store = {
     },
 
     isCloudReady: function () { return !!db; },
-    getLastSync: function () { return readJSON(SYNC_KEY, '') || ''; }
+    getLastSync: function () { return readJSON(SYNC_KEY, '') || ''; },
+
+    /* ---------- Telegram notifications ---------- */
+    getTelegram: function () { return readJSON(TG_KEY, null); },
+
+    saveTelegram: function (token, chatId) {
+        var data = {
+            bot_token: String(token == null ? '' : token).trim(),
+            chat_id: String(chatId == null ? '' : chatId).trim(),
+            updated_at: nowStamp()
+        };
+        writeJSON(TG_KEY, data);
+        if (db) {
+            db.collection('settings').doc('telegram')
+                .set(data, { merge: true })
+                .catch(function () { });
+        }
+        return data;
+    },
+
+    loadTelegram: function () {
+        if (!db) return Promise.resolve(readJSON(TG_KEY, null));
+        return db.collection('settings').doc('telegram').get().then(function (snap) {
+            if (snap.exists) {
+                var d = snap.data() || {};
+                writeJSON(TG_KEY, d);
+                return d;
+            }
+            return readJSON(TG_KEY, null);
+        }).catch(function () { return readJSON(TG_KEY, null); });
+    },
+
+    testTelegram: function () {
+        var cfg = readJSON(TG_KEY, null);
+        if (!cfg || !cfg.bot_token || !cfg.chat_id) {
+            return Promise.resolve({ ok: false, error: 'Save Bot Token and Chat ID first.' });
+        }
+        return tgSend(cfg, 'Test alert from IRFAN BOY Admin. Telegram notifications are working!');
+    }
 };
 
 export function escapeHTML(value) {
@@ -296,6 +335,26 @@ export function readFileAsDataURL(file) {
         reader.onload = function () { resolve(reader.result); };
         reader.onerror = reject;
         reader.readAsDataURL(file);
+    });
+}
+
+function tgSend(cfg, text) {
+    if (typeof fetch !== 'function') {
+        return Promise.resolve({ ok: false, error: 'Fetch is not available in this browser.' });
+    }
+    var url = 'https://api.telegram.org/bot' + cfg.bot_token + '/sendMessage' +
+        '?chat_id=' + encodeURIComponent(cfg.chat_id) +
+        '&text=' + encodeURIComponent(text) +
+        '&disable_web_page_preview=true';
+    return fetch(url).then(function (res) {
+        return res.json().then(function (j) {
+            if (j && j.ok) return { ok: true };
+            return { ok: false, error: 'Telegram error' + (j && j.description ? ': ' + j.description : ' (' + res.status + ')') };
+        }).catch(function () {
+            return { ok: false, error: 'Telegram error (' + res.status + ')' };
+        });
+    }).catch(function () {
+        return { ok: false, error: 'Network error. Check your Bot Token, Chat ID and internet.' };
     });
 }
 

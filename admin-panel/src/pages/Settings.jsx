@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Store } from '../store.js';
 import { useInstall } from '../install.js';
 
@@ -11,6 +11,44 @@ export default function Settings({ tickets }) {
     const [newPwd, setNewPwd] = useState('');
     const [confPwd, setConfPwd] = useState('');
     const { installed, isIOS, canInstall, install } = useInstall();
+    const [tg, setTg] = useState({ bot_token: '', chat_id: '' });
+    const [tgAlert, setTgAlert] = useState(null); // {ok, msg}
+    const [tgBusy, setTgBusy] = useState(false);
+
+    useEffect(function () {
+        var cached = Store.getTelegram();
+        if (cached) setTg({ bot_token: cached.bot_token || '', chat_id: cached.chat_id || '' });
+        Store.loadTelegram().then(function (d) {
+            if (d) setTg({ bot_token: d.bot_token || '', chat_id: d.chat_id || '' });
+        });
+    }, []);
+
+    function saveTg(e) {
+        e.preventDefault();
+        if (!tg.bot_token.trim() || !tg.chat_id.trim()) {
+            setTgAlert({ ok: false, msg: 'Please enter both Bot Token and Chat ID.' });
+            return;
+        }
+        Store.saveTelegram(tg.bot_token, tg.chat_id);
+        setTgAlert({ ok: true, msg: 'Telegram settings saved!' });
+    }
+
+    function testTg() {
+        if (!tg.bot_token.trim() || !tg.chat_id.trim()) {
+            setTgAlert({ ok: false, msg: 'Please enter both Bot Token and Chat ID first.' });
+            return;
+        }
+        Store.saveTelegram(tg.bot_token, tg.chat_id);
+        setTgBusy(true);
+        setTgAlert(null);
+        Store.testTelegram().then(function (r) {
+            setTgBusy(false);
+            setTgAlert({ ok: !!r.ok, msg: r.ok ? 'Test message sent to Telegram!' : (r.error || 'Could not send test message.') });
+        }).catch(function () {
+            setTgBusy(false);
+            setTgAlert({ ok: false, msg: 'Could not send test message.' });
+        });
+    }
 
     function showAlert(ok, msg) { setAlert({ ok, msg }); }
 
@@ -71,6 +109,28 @@ export default function Settings({ tickets }) {
                 ) : (
                     <div className="flat-row"><strong>Android / Chrome:</strong> tap the <strong>⋮</strong> menu → <strong>Install app</strong>. (Requires the site to be opened on HTTPS.)</div>
                 )}
+            </div>
+
+            <div className="flat-card">
+                <div className="flat-card-head">
+                    <span className="cell-strong">Telegram Notifications</span>
+                    <span className={'a-badge ' + (tg.bot_token && tg.chat_id ? 'green' : 'grey')}>{tg.bot_token && tg.chat_id ? 'Connected' : 'Not Set'}</span>
+                </div>
+                <div className="flat-row">Get a Bot Token from <strong>@BotFather</strong> on Telegram and your Chat ID from <strong>@userinfobot</strong>. Every user request will be sent to your Telegram.</div>
+                <label className="a-label">Bot Token</label>
+                <input className="a-input" type="text" autoComplete="off" placeholder="123456789:ABCdefGHI..." value={tg.bot_token} onChange={function (e) { setTg({ ...tg, bot_token: e.target.value }); setTgAlert(null); }} />
+                <div style={{ height: '10px' }}></div>
+                <label className="a-label">Chat ID</label>
+                <input className="a-input" type="text" autoComplete="off" placeholder="e.g. 123456789" value={tg.chat_id} onChange={function (e) { setTg({ ...tg, chat_id: e.target.value }); setTgAlert(null); }} />
+                {tgAlert ? (
+                    <div className={'a-alert ' + (tgAlert.ok ? 'ok' : 'error')} style={{ display: 'flex', marginTop: '12px' }}>
+                        <span>{tgAlert.msg}</span>
+                    </div>
+                ) : null}
+                <div className="flat-actions">
+                    <button type="button" className="a-btn a-btn-primary a-btn-sm" onClick={saveTg}>Save Settings</button>
+                    <button type="button" className="a-btn a-btn-sm" onClick={testTg} disabled={tgBusy}>{tgBusy ? 'Sending...' : 'Send Test Message'}</button>
+                </div>
             </div>
 
             <div className="flat-card">

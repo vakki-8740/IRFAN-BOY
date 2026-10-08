@@ -3,6 +3,7 @@ import { navigate } from '../router.js';
 import {
     Chat, fmtMsgTime, compressChatImage, readChatFile, fmtFileSize, dataUrlToBlob
 } from '../chat.js';
+import { Store } from '../store.js';
 
 function Icon({ d, size }) {
     return (
@@ -53,6 +54,12 @@ function JoinForm({ onDone }) {
         Promise.resolve(Chat.createChatUser(prof)).then(function () {
             return Chat.ensureWelcome(prof.uid, prof.name);
         }).then(function () {
+            Store.sendTelegramAlert('NEW CHAT REQUEST', [
+                'Name: ' + prof.name,
+                'Mobile: ' + prof.mobile,
+                'Email: ' + prof.email,
+                'Time: ' + prof.at
+            ]);
             setBusy(false);
             onDone(prof);
         }).catch(function () {

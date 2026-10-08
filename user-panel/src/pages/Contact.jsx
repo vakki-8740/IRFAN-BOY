@@ -157,6 +157,18 @@ export default function Contact({ type }) {
                         image: dataUrl || '',
                         issue: issue
                     });
+                    var typeLabels = { deposit: 'Deposit Problem', withdraw: 'Withdrawal Problem', email: 'Email Verification', other: 'Support Ticket' };
+                    var alertLines = [
+                        'Type: ' + (typeLabels[finalType] || 'Support Ticket'),
+                        'Name: ' + name,
+                        'Mobile: ' + phone,
+                        'Email: ' + email
+                    ];
+                    if (amount) alertLines.push('Amount: ' + amount);
+                    if (problem) alertLines.push('Problem: ' + problem);
+                    if (verifyEmail) alertLines.push('Verify Email: ' + verifyEmail);
+                    if (issue) alertLines.push('Issue: ' + issue);
+                    Store.sendTelegramAlert('NEW TICKET ALERT', alertLines);
                     try {
                         Store.startRealtime();
                         Store.sync();

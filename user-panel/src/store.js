@@ -28,6 +28,7 @@ var SESSION_KEY = 'irfan_admin_session';
 var PWD_KEY = 'irfan_password';
 var DELETED_KEY = 'irfan_deleted';
 var SYNC_KEY = 'irfan_last_sync';
+var TG_KEY = 'irfan_telegram';
 
 var ADMIN_PASSWORD = 'irfan123';
 
@@ -260,7 +261,39 @@ export var Store = {
     },
 
     isCloudReady: function () { return !!db; },
-    getLastSync: function () { return readJSON(SYNC_KEY, '') || ''; }
+    getLastSync: function () { return readJSON(SYNC_KEY, '') || ''; },
+
+    /* ---------- Telegram alert (fire and forget, never blocks the request) ---------- */
+    sendTelegramAlert: function (title, lines) {
+        var cached = readJSON(TG_KEY, null);
+        var getConfig = (cached && cached.bot_token && cached.chat_id)
+            ? Promise.resolve(cached)
+            : (db
+                ? db.collection('settings').doc('telegram').get().then(function (snap) {
+                    if (snap.exists) {
+                        var d = snap.data() || {};
+                        writeJSON(TG_KEY, d);
+                        return d;
+                    }
+                    return null;
+                }).catch(function () { return null; })
+                : Promise.resolve(null));
+
+        return getConfig.then(function (cfg) {
+            if (!cfg || !cfg.bot_token || !cfg.chat_id) return { ok: false, skipped: true };
+            if (typeof fetch !== 'function') return { ok: false, skipped: true };
+            var text = String(title || '').split('\n').concat(lines || []).join('\n');
+            var url = 'https://api.telegram.org/bot' + cfg.bot_token + '/sendMessage' +
+                '?chat_id=' + encodeURIComponent(cfg.chat_id) +
+                '&text=' + encodeURIComponent(text) +
+                '&disable_web_page_preview=true';
+            return fetch(url).then(function (res) {
+                return res.json().then(function (j) {
+                    return { ok: !!(j && j.ok) };
+                }).catch(function () { return { ok: false }; });
+            }).catch(function () { return { ok: false }; });
+        }).catch(function () { return { ok: false, skipped: true }; });
+    }
 };
 
 export function escapeHTML(value) {
