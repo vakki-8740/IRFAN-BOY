@@ -8,6 +8,9 @@ import Dashboard from './pages/Dashboard.jsx';
 import TicketListPage from './pages/TicketListPage.jsx';
 import TicketDetail from './pages/TicketDetail.jsx';
 import Settings from './pages/Settings.jsx';
+import Chats from './pages/Chats.jsx';
+import ChatRoom from './pages/ChatRoom.jsx';
+import { Chat } from './chat.js';
 import { TYPES } from './components/shared.jsx';
 
 const VIEW_META = {
@@ -16,7 +19,9 @@ const VIEW_META = {
     '/pending': { view: 'pending', title: 'Pending Tickets', sub: 'Not resolved yet', stats: true },
     '/resolved': { view: 'resolved', title: 'Resolved Tickets', sub: 'Completed tickets', stats: true },
     '/settings': { view: 'settings', title: 'Settings', sub: 'Admin panel settings and cloud sync', stats: false },
-    '/ticket': { view: 'ticket', title: 'Ticket Details', sub: 'User details, line by line', stats: false }
+    '/ticket': { view: 'ticket', title: 'Ticket Details', sub: 'User details, line by line', stats: false },
+    '/chats': { view: 'chats', title: 'Chats', sub: 'Online chat users', stats: false },
+    '/chat': { view: 'chat', title: 'Chat', sub: 'Live conversation', stats: false }
 };
 
 export default function App() {
@@ -49,6 +54,23 @@ export default function App() {
         };
     }, []);
 
+    /* admin online presence (chat status) */
+    useEffect(() => {
+        if (!loggedIn) return undefined;
+        Chat.adminHeartbeat();
+        const iv = setInterval(() => Chat.adminHeartbeat(), 20000);
+        function onVis() { if (!document.hidden) Chat.adminHeartbeat(); }
+        function onLeave() { Chat.adminOffline(); }
+        document.addEventListener('visibilitychange', onVis);
+        window.addEventListener('pagehide', onLeave);
+        return () => {
+            clearInterval(iv);
+            document.removeEventListener('visibilitychange', onVis);
+            window.removeEventListener('pagehide', onLeave);
+            Chat.adminOffline();
+        };
+    }, [loggedIn]);
+
     if (!loggedIn || route.path === '/login') {
         return <Login onSuccess={() => setLoggedIn(true)} />;
     }
@@ -65,6 +87,8 @@ export default function App() {
     if (meta.view === 'dashboard') page = <Dashboard tickets={tickets} />;
     else if (meta.view === 'ticket') page = <TicketDetail id={route.query.get('id') || ''} />;
     else if (meta.view === 'settings') page = <Settings tickets={tickets} />;
+    else if (meta.view === 'chats') page = <Chats />;
+    else if (meta.view === 'chat') page = <ChatRoom id={route.query.get('id') || ''} />;
     else page = <TicketListPage tickets={tickets} view={meta.view} />;
 
     return (

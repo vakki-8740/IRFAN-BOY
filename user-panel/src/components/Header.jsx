@@ -33,9 +33,9 @@ const MENU = [
         go: () => goHome('faq')
     },
     {
-        label: 'Other Query',
+        label: 'Online Chat',
         icon: <path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l2-4.9a8.4 8.4 0 1 1 16-4.6z" />,
-        go: () => navigate('/contact?type=other')
+        go: () => navigate('/chat')
     }
 ];
 

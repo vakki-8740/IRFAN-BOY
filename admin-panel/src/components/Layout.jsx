@@ -7,6 +7,7 @@ import { useInstall } from '../install.js';
 const NAV = [
     { view: 'dashboard', href: '#/', label: 'Dashboard', icon: 'dashboard' },
     { view: 'tickets', href: '#/tickets', label: 'All Tickets', badge: true, icon: 'tickets' },
+    { view: 'chats', href: '#/chats', label: 'Chats', icon: 'chat' },
     { view: 'settings', href: '#/settings', label: 'Settings', icon: 'gear' }
 ];
 
@@ -33,7 +34,7 @@ export default function Layout({ view, meta, tickets, cloudOn, children }) {
                     </div>
                     <nav className="admin-nav">
                         {NAV.map((n) => {
-                            const active = (n.view === view) || (view === 'ticket' && n.view === 'tickets');
+                            const active = (n.view === view) || (view === 'ticket' && n.view === 'tickets') || (view === 'chat' && n.view === 'chats');
                             return (
                                 <a key={n.view} href={n.href} className={active ? 'active' : ''} onClick={() => setSideOpen(false)}>
                                     <Ico name={n.icon} /> {n.label}

@@ -22,9 +22,9 @@ const CARDS = [
     },
     {
         icon: 'assets/icon-other.jpg',
-        title: 'Other Query',
-        sub: 'Any other question? We are listening.',
-        type: 'other'
+        title: 'Online Chat',
+        sub: 'Chat with our support team instantly.',
+        type: 'chat'
     }
 ];
 
@@ -65,7 +65,7 @@ export default function Home() {
 
             <section className="cards">
                 {CARDS.map((c) => (
-                    <a key={c.type} className="card" href={'#/contact?type=' + c.type}>
+                    <a key={c.type} className="card" href={c.type === 'chat' ? '#/chat' : '#/contact?type=' + c.type}>
                         <img src={c.icon} alt="" className="card-icon-img" />
                         <h3>{c.title}</h3>
                         <p>{c.sub}</p>

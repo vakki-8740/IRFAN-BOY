@@ -5,6 +5,7 @@ import Footer from './components/Footer.jsx';
 import Home from './pages/Home.jsx';
 import Contact from './pages/Contact.jsx';
 import MyTickets from './pages/MyTickets.jsx';
+import ChatPage from './pages/Chat.jsx';
 
 export default function App() {
     const [route, setRoute] = useState(getRoute());
@@ -20,6 +21,8 @@ export default function App() {
         page = <Contact type={route.query.get('type') || 'other'} />;
     } else if (route.path === '/tickets') {
         page = <MyTickets />;
+    } else if (route.path === '/chat') {
+        page = <ChatPage />;
     } else {
         page = <Home />;
     }
