@@ -1,11 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { navigate } from '../router.js';
+import React, { useState, useRef, useEffect } from 'react';
 import { Store, readFileAsDataURL } from '../store.js';
 
 const CONFIG = {
     deposit: {
         title: 'Deposit Ticket',
-        sub: 'Verify your deposit problem, we will help you right away.',
         problems: ['Pending', 'Reject', 'Processing', 'Not Received in Game Account'],
         upload: 'Upload Payment Image',
         amount: true,
@@ -13,7 +11,6 @@ const CONFIG = {
     },
     withdraw: {
         title: 'Withdrawal Ticket',
-        sub: 'Verify your withdrawal problem, we will help you right away.',
         problems: ['Pending', 'Reject', 'Processing', 'Not Received in Bank Account'],
         upload: 'Upload Withdrawal Issue Image',
         amount: true,
@@ -21,14 +18,12 @@ const CONFIG = {
     },
     email: {
         title: 'Email Verification Ticket',
-        sub: 'Fill in the details for email verification.',
         problems: null,
         upload: 'Upload Issue Image',
         verify: true
     },
     other: {
         title: 'Support Ticket',
-        sub: 'Write your problem in detail, we will help you right away.',
         problems: null,
         upload: null
     }
@@ -74,11 +69,18 @@ export default function Contact({ type }) {
         problem: '', amount: '', verify_email: '', issue: ''
     });
     const [file, setFile] = useState(null);
-    const [preview, setPreview] = useState('');
+    const [toast, setToast] = useState('');
     const [error, setError] = useState('');
     const [sending, setSending] = useState(false);
     const [success, setSuccess] = useState(false);
     const inputRef = useRef(null);
+
+    /* small popup: "Image Uploaded" */
+    useEffect(function () {
+        if (!toast) return undefined;
+        var t = setTimeout(function () { setToast(''); }, 2200);
+        return function () { clearTimeout(t); };
+    }, [toast]);
 
     function set(key) {
         return function (e) { setForm({ ...form, [key]: e.target.value }); };
@@ -94,14 +96,9 @@ export default function Contact({ type }) {
         var f = e.target.files[0];
         if (f && f.type.indexOf('image/') === 0) {
             setFile(f);
-            setPreview(URL.createObjectURL(f));
+            setToast('Image Uploaded');
         }
-    }
-
-    function removeFile() {
-        setFile(null);
-        setPreview('');
-        if (inputRef.current) inputRef.current.value = '';
+        e.target.value = '';
     }
 
     function submit(e) {
@@ -130,13 +127,16 @@ export default function Contact({ type }) {
             return showError('Email ID is required for verification.');
         }
         if (cfg.upload && !file) {
-            return showError('Please upload an image (JPG/PNG/WebP, max 5MB).');
+            return showError('Please upload an image.');
         }
         if (file) {
             var okExt = ['jpg', 'jpeg', 'png', 'webp'];
             var ext = (file.name.split('.').pop() || '').toLowerCase();
-            if (okExt.indexOf(ext) === -1 || file.size > 5 * 1024 * 1024) {
-                return showError('Image upload failed. Please use JPG/PNG/WebP (max 5MB).');
+            if (okExt.indexOf(ext) === -1) {
+                return showError('Please use a JPG, PNG or WebP image.');
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                return showError('Image is too large (max 5MB).');
             }
         }
 
@@ -218,7 +218,6 @@ export default function Contact({ type }) {
             ) : (
                 <>
                     <h1>{cfg.title}</h1>
-                    <p className="sub">{cfg.sub}</p>
 
                     {error ? <div className="error-box">{error}</div> : null}
 
@@ -263,24 +262,21 @@ export default function Contact({ type }) {
 
                         {cfg.upload ? (
                             <>
-                                <label>{cfg.upload} <span>*</span></label>
-                                {file ? (
-                                    <div className="upload-preview" style={{ display: 'flex' }}>
-                                        <img src={preview} alt="Preview" />
-                                        <button type="button" className="preview-remove" aria-label="Remove" onClick={removeFile}>
-                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12" /></svg>
-                                        </button>
-                                    </div>
-                                ) : (
-                                    <label className="upload-box" style={{ display: 'flex' }}>
-                                        <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={onFileChange} hidden />
+                                <label>{cfg.upload}</label>
+                                <label className={'upload-box' + (file ? ' done' : '')}>
+                                    <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={onFileChange} hidden />
+                                    {file ? (
+                                        <div className="upload-icon ok">
+                                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 13 4 4 10-10" /></svg>
+                                        </div>
+                                    ) : (
                                         <div className="upload-icon">
                                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 16V4m0 0-4 4m4-4 4 4" /><path d="M4 17v1a3 3 0 0 0 3 3h10a3 3 0 0 0 3-3v-1" /></svg>
                                         </div>
-                                        <span className="upload-title">Tap to Upload Image</span>
-                                        <span className="upload-hint">JPG, PNG or WebP (max 5MB)</span>
-                                    </label>
-                                )}
+                                    )}
+                                    <span className="upload-title">{file ? 'Image Uploaded' : 'Tap to Upload Image'}</span>
+                                    <span className="upload-hint">{file ? 'Tap to change image' : 'JPG, PNG or WebP'}</span>
+                                </label>
                             </>
                         ) : null}
 
@@ -297,10 +293,16 @@ export default function Contact({ type }) {
             <div className={'loading-overlay' + (sending ? ' show' : '')}>
                 <div className="loading-card">
                     <div className="spinner"></div>
-                    <p className="loading-title">Sending Request</p>
-                    <p className="loading-sub">Please wait, do not close this page...</p>
+                    <p className="loading-title">Sending...</p>
                 </div>
             </div>
+
+            {toast ? (
+                <div className="toast">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="m5 13 4 4 10-10" /></svg>
+                    {toast}
+                </div>
+            ) : null}
         </section>
     );
 }
