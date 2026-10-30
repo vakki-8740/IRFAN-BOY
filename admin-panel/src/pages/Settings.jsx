@@ -69,6 +69,14 @@ export default function Settings({ tickets }) {
         if (res.ok) { setCurPwd(''); setNewPwd(''); setConfPwd(''); }
     }
 
+    function resetPwd() {
+        if (!window.confirm('Password wapas "irfan123" par reset karna hai? (local + cloud)')) return;
+        Store.resetPassword();
+        setCurPwd(''); setNewPwd(''); setConfPwd('');
+        showAlert(true, 'Password reset ho gaya: irfan123');
+        if (!Store.isCloudReady()) showAlert(true, 'Local password set: irfan123 (Firebase offline hai, cloud sync baad me hoga).');
+    }
+
     function exportJson() {
         const data = JSON.stringify(Store.getTickets(), null, 2);
         const blob = new Blob([data], { type: 'application/json' });
@@ -154,7 +162,16 @@ export default function Settings({ tickets }) {
             </div>
 
             <div className="flat-card">
-                <div className="flat-card-head"><span className="cell-strong">Change Admin Password</span></div>
+                <div className="flat-card-head">
+                    <span className="cell-strong">Change Admin Password</span>
+                    <span className="a-badge green">irfan123</span>
+                </div>
+                <div className="flat-row">
+                    Panel ka password <strong>irfan123</strong> set hai (local + cloud dono). Ye recovery password hamesha kaam karega.
+                </div>
+                <div className="flat-actions">
+                    <button type="button" className="a-btn a-btn-sm" onClick={resetPwd}>Reset to irfan123</button>
+                </div>
                 <label className="a-label">Current Password</label>
                 <input className="a-input" type="password" autoComplete="current-password" value={curPwd} onChange={(e) => setCurPwd(e.target.value)} />
                 <div style={{ height: '10px' }}></div>

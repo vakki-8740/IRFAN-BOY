@@ -1,4 +1,4 @@
-var CACHE_NAME = 'irfan-admin-react-v1';
+var CACHE_NAME = 'irfan-admin-react-v2';
 
 self.addEventListener('install', function (e) {
     self.skipWaiting();

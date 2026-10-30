@@ -30,7 +30,17 @@ var DELETED_KEY = 'irfan_deleted';
 var SYNC_KEY = 'irfan_last_sync';
 var TG_KEY = 'irfan_telegram';
 
+/* ============================================================
+   ADMIN PASSWORD (permanent)
+   Panel ka password hamesha "irfan123" rahega.
+   Purana / bhoola hua password localStorage aur Firestore dono
+   jagah se ek baar hard-reset ho jata hai (applyPasswordReset).
+   ============================================================ */
 var ADMIN_PASSWORD = 'irfan123';
+
+var PWD_RESET_KEY = 'irfan_password_reset';
+var PWD_RESET_SYNCED_KEY = 'irfan_password_reset_synced';
+var PWD_RESET_VERSION = 'reset-irfan123-v1';
 
 function readJSON(key, fallback) {
     try {
@@ -56,6 +66,44 @@ function nowStamp() {
     var p = function (n) { return n < 10 ? '0' + n : '' + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
         ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+function storageGet(key) {
+    try { return localStorage.getItem(key) || ''; } catch (e) { return ''; }
+}
+
+function storageSet(key, value) {
+    try { localStorage.setItem(key, value); } catch (e) { }
+}
+
+/* Bhoola hua password hata kar password ko "irfan123" kar deta hai
+   (local + Firestore). Har browser me ek baar chalta hai. */
+function applyPasswordReset(force) {
+    var stamp = nowStamp();
+    var done = storageGet(PWD_RESET_KEY) === PWD_RESET_VERSION;
+
+    if (!done || force) {
+        writeJSON(PWD_KEY, { value: ADMIN_PASSWORD, at: stamp });
+        storageSet(PWD_RESET_KEY, PWD_RESET_VERSION);
+        storageSet(PWD_RESET_SYNCED_KEY, '');
+    } else if (storageGet(PWD_RESET_SYNCED_KEY) === '1') {
+        return false; /* sab kuch pehle hi set hai */
+    }
+
+    if (!db) return true;
+
+    db.collection('settings').doc('admin')
+        .set({ password: ADMIN_PASSWORD, updated_at: stamp }, { merge: true })
+        .then(function () { storageSet(PWD_RESET_SYNCED_KEY, '1'); })
+        .catch(function () { });
+    return true;
+}
+
+/* Reset abhi cloud tak nahi pahuncha? Tab cloud se purana password
+   wapas na aaye. */
+function isPasswordResetPending() {
+    return storageGet(PWD_RESET_KEY) === PWD_RESET_VERSION &&
+        storageGet(PWD_RESET_SYNCED_KEY) !== '1';
 }
 
 function cleanTicket(t) {
@@ -248,7 +296,9 @@ export var Store = {
     login: function (password) {
         var saved = readJSON(PWD_KEY, null);
         var target = (saved && saved.value) ? saved.value : ADMIN_PASSWORD;
-        if (password === target) {
+        var typed = String(password == null ? '' : password);
+        /* ADMIN_PASSWORD (irfan123) hamesha kaam karega — recovery password */
+        if (typed === target || typed === ADMIN_PASSWORD) {
             writeJSON(SESSION_KEY, { loggedIn: true, at: nowStamp() });
             return true;
         }
@@ -267,15 +317,20 @@ export var Store = {
     changePassword: function (current, next) {
         var saved = readJSON(PWD_KEY, null);
         var target = (saved && saved.value) ? saved.value : ADMIN_PASSWORD;
-        if (current !== target) return { ok: false, msg: 'Current password is incorrect.' };
-        if (!next || next.length < 4) return { ok: false, msg: 'New password must be at least 4 characters.' };
+        var typed = String(current == null ? '' : current);
+        if (typed !== target && typed !== ADMIN_PASSWORD) {
+            return { ok: false, msg: 'Current password is incorrect.' };
+        }
+        if (!next || String(next).length < 4) return { ok: false, msg: 'New password must be at least 4 characters.' };
+        next = String(next);
         writeJSON(PWD_KEY, { value: next, at: nowStamp() });
+        storageSet(PWD_RESET_SYNCED_KEY, '1');
         if (db) {
             db.collection('settings').doc('admin')
                 .set({ password: next, updated_at: nowStamp() }, { merge: true })
                 .catch(function () { });
         }
-        return { ok: true, msg: 'Password changed!' };
+        return { ok: true, msg: 'Password changed! (irfan123 recovery password hamesha kaam karega)' };
     },
 
     isCloudReady: function () { return !!db; },
@@ -317,8 +372,18 @@ export var Store = {
             return Promise.resolve({ ok: false, error: 'Save Bot Token and Chat ID first.' });
         }
         return tgSend(cfg, 'Test alert from IRFAN BOY Admin. Telegram notifications are working!');
-    }
+    },
+
+    /* Password ko zabardasti irfan123 par reset karo (local + cloud) */
+    resetPassword: function () {
+        return applyPasswordReset(true);
+    },
+
+    getAdminPassword: function () { return ADMIN_PASSWORD; }
 };
+
+/* Panel load hote hi password "irfan123" set/reset ho jata hai */
+applyPasswordReset();
 
 export function escapeHTML(value) {
     return String(value == null ? '' : value)
@@ -396,12 +461,16 @@ Store.sync = function () {
     }).catch(function () { });
 
     var setP = db.collection('settings').doc('admin').get().then(function (d) {
+        /* Reset cloud tak pahunchne se pehle purana password wapas na aaye */
+        if (isPasswordResetPending()) return;
         if (d.exists) {
             var data = d.data() || {};
             if (data.password) {
                 var local = readJSON(PWD_KEY, null);
-                if (!local || String(data.updated_at || '') >= String(local.at || '')) {
-                    writeJSON(PWD_KEY, { value: data.password, at: data.updated_at || nowStamp() });
+                if (!local || local.value !== data.password) {
+                    if (!local || String(data.updated_at || '') >= String(local.at || '')) {
+                        writeJSON(PWD_KEY, { value: data.password, at: data.updated_at || nowStamp() });
+                    }
                 }
             }
         }
